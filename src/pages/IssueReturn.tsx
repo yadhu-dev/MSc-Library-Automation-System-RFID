@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, User, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, Student, IssuedBook, Book } from '../lib/supabase';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/Toast';
+import { io } from "socket.io-client";
 
 export function IssueReturn() {
   const navigate = useNavigate();
@@ -17,6 +18,48 @@ export function IssueReturn() {
   const [searchingBook, setSearchingBook] = useState(false);
   const [showSuccess, setShowSuccess] = useState<'issue' | 'return' | null>(null);
   const { toasts, addToast, removeToast } = useToast();
+
+
+  useEffect(() => {
+    const socket = io("http://localhost:5000");
+
+    socket.on("connect", () => {
+      console.log("Connected to backend via SocketIO");
+    });
+    // Listen for serial data from backend
+    socket.on("serial_data", (msg) => {
+      const line = msg.data;
+
+      // Only accept data that doesn't start with '+'
+      if (!line.startsWith("BK") && line !== "") {
+        console.log("Received Student ID:", line);
+        setStudentId(line);
+
+        // After setting value, simulate pressing Enter
+        setTimeout(() => {
+          const input = document.querySelector("input"); // select your input box
+          if (input) {
+            const event = new KeyboardEvent("keydown", {
+              key: "Enter",
+              code: "Enter",
+              keyCode: 13,
+              which: 13,
+              bubbles: true,
+            });
+            input.dispatchEvent(event);
+          }
+        }, 300);
+      }
+      if (line.startsWith("BK") && line !== "") {
+        console.log("Received Student ID:", line);
+        // setBookId(line);
+         handleBookIdChange(line);
+      }
+    });
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   const handleStudentSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,7 +233,16 @@ export function IssueReturn() {
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => navigate('/dashboard')}
+          onClick={async () => {
+            try {
+              await fetch("http://localhost:5000/api/stop_read", { method: "POST" });
+              console.log("Stop command sent successfully");
+            } catch (error) {
+              console.error("Error sending stop command:", error);
+            } finally {
+              navigate('/dashboard');
+            }
+          }}
           className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -222,6 +274,12 @@ export function IssueReturn() {
                     type="text"
                     value={studentId}
                     onChange={(e) => setStudentId(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleStudentSearch(e);
+                      }
+                    }}
                     placeholder="Enter Roll No (e.g., IS2524)"
                     className="w-full bg-gray-900/50 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                     required

@@ -34,6 +34,7 @@ export function AddBook() {
     setLoading(true);
 
     try {
+      // check if book already exists in Supabase
       const { data: existingBook } = await supabase
         .from('books')
         .select('book_id')
@@ -69,6 +70,7 @@ export function AddBook() {
 
       const count = parseInt(totalCount) || 1;
 
+      //  Insert into Supabase
       const { error: insertError } = await supabase.from('books').insert({
         book_id: bookId,
         book_name: bookName,
@@ -82,6 +84,25 @@ export function AddBook() {
         addToast('Failed to add book', 'error');
         setLoading(false);
         return;
+      }
+
+      // Send to backend Python for RFID/ATmega write
+      try {
+        const response = await fetch("http://localhost:5000/api/write_book", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            book_id: bookId
+          }),
+        });
+
+        if (response.ok) {
+          console.log("Book data sent to backend successfully");
+        } else {
+          console.error("Failed to send book data to backend");
+        }
+      } catch (err) {
+        console.error("Error sending to backend:", err);
       }
 
       addToast('Book added successfully', 'success');
@@ -98,6 +119,7 @@ export function AddBook() {
     }
   };
 
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-900 to-black">
       <ToastContainer toasts={toasts} removeToast={removeToast} />
@@ -106,7 +128,16 @@ export function AddBook() {
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => navigate('/dashboard')}
+          onClick={async () => {
+            try {
+              await fetch("http://localhost:5000/api/stop_write", { method: "POST" });
+              console.log("Stop command sent successfully");
+            } catch (error) {
+              console.error("Error sending stop command:", error);
+            } finally {
+              navigate('/dashboard');
+            }
+          }}
           className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />

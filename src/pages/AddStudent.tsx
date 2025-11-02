@@ -49,98 +49,115 @@ export function AddStudent() {
     }
   };
 
-  const handleSubmit = async (e:React.FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-  setLoading(true);
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
 
-  try {
-    // Check duplicates
-    const { data: existingStudent } = await supabase
-      .from("students")
-      .select("roll_no")
-      .eq("roll_no", rollNo)
-      .maybeSingle();
+    try {
+      // Check duplicates
+      const { data: existingStudent } = await supabase
+        .from("students")
+        .select("roll_no")
+        .eq("roll_no", rollNo)
+        .maybeSingle();
 
-    if (existingStudent) {
-      addToast("Roll Number already exists", "error");
-      setLoading(false);
-      return;
-    }
-
-    const { data: existingEmail } = await supabase
-      .from("students")
-      .select("email")
-      .eq("email", email)
-      .maybeSingle();
-
-    if (existingEmail) {
-      addToast("Email already exists", "error");
-      setLoading(false);
-      return;
-    }
-
-    let photoUrl = null;
-
-    if (photoFile) {
-      const fileExt = photoFile.name.split(".").pop();
-      const fileName = `${Date.now()}_${Math.random()
-        .toString(36)
-        .substring(2)}.${fileExt}`;
-      const filePath = `students/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("library-photos")
-        .upload(filePath, photoFile);
-
-      if (uploadError) {
-        console.error(uploadError.message);
-        addToast("Photo upload failed", "error");
+      if (existingStudent) {
+        addToast("Roll Number already exists", "error");
         setLoading(false);
         return;
       }
 
-      const { data: publicUrlData } = supabase.storage
-        .from("library-photos")
-        .getPublicUrl(filePath);
+      const { data: existingEmail } = await supabase
+        .from("students")
+        .select("email")
+        .eq("email", email)
+        .maybeSingle();
 
-      photoUrl = publicUrlData?.publicUrl || null;
-    }
+      if (existingEmail) {
+        addToast("Email already exists", "error");
+        setLoading(false);
+        return;
+      }
 
-    // Correct insert
-    const { error: insertError } = await supabase.from("students").insert({
-      roll_no: rollNo,
-      student_id: rollNo,
-      name,
-      department,
-      batch,
-      email,
-      photo_url: photoUrl,
-    });
+      let photoUrl = null;
 
-    if (insertError) {
-      console.error(insertError);
-      addToast("Failed to add student", "error");
+      if (photoFile) {
+        const fileExt = photoFile.name.split(".").pop();
+        const fileName = `${Date.now()}_${Math.random()
+          .toString(36)
+          .substring(2)}.${fileExt}`;
+        const filePath = `students/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("library-photos")
+          .upload(filePath, photoFile);
+
+        if (uploadError) {
+          console.error(uploadError.message);
+          addToast("Photo upload failed", "error");
+          setLoading(false);
+          return;
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from("library-photos")
+          .getPublicUrl(filePath);
+
+        photoUrl = publicUrlData?.publicUrl || null;
+      }
+
+      //  Insert into Supabase
+      const { error: insertError } = await supabase.from("students").insert({
+        roll_no: rollNo,
+        student_id: rollNo,
+        name,
+        department,
+        batch,
+        email,
+        photo_url: photoUrl,
+      });
+
+      if (insertError) {
+        console.error(insertError);
+        addToast("Failed to add student", "error");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch("http://localhost:5000/api/write_student", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ roll_no: rollNo }),
+        });
+
+        if (response.ok) {
+          console.log("Roll number sent to backend successfully");
+        } else {
+          console.error("Failed to send roll number to backend");
+        }
+      } catch (err) {
+        console.error("Error sending roll number to backend:", err);
+      }
+
+      addToast("Student Added Successfully", "success");
+
+      // Reset form
+      setRollNo("");
+      setName("");
+      setDepartment("");
+      setBatch("");
+      setEmail("");
+      setPhotoFile(null);
+      setPhotoPreview(null);
       setLoading(false);
-      return;
+    } catch (error) {
+      console.error(error);
+      addToast("An error occurred", "error");
+      setLoading(false);
     }
+  };
 
-    addToast("Student Added Successfully", "success");
-
-    // Reset
-    setRollNo("");
-    setName("");
-    setDepartment("");
-    setBatch("");
-    setEmail("");
-    setPhotoFile(null);
-    setPhotoPreview(null);
-    setLoading(false);
-  } catch (error) {
-    console.error(error);
-    addToast("An error occurred", "error");
-    setLoading(false);
-  }
-};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-900 to-black">
@@ -151,7 +168,16 @@ export function AddStudent() {
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => navigate('/dashboard')}
+          onClick={async () => {
+            try {
+              await fetch("http://localhost:5000/api/stop_write", { method: "POST" });
+              console.log("Stop command sent successfully");
+            } catch (error) {
+              console.error("Error sending stop command:", error);
+            } finally {
+              navigate('/dashboard');
+            }
+          }}
           className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />

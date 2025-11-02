@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Search, User, BookOpen, History } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/Toast';
+import { io } from "socket.io-client";
 
 export function StudentProfile() {
   const navigate = useNavigate();
@@ -15,6 +16,34 @@ export function StudentProfile() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const { toasts, addToast, removeToast } = useToast();
+
+  useEffect(() => {
+    const socket = io("http://localhost:5000");
+
+    socket.on("connect", () => {
+      console.log("Connected to backend via SocketIO");
+    });
+
+    socket.on("serial_data", (msg) => {
+      const line = msg.data;
+
+      if (!line.startsWith("BK") && line !== "") {
+        console.log("Received Student ID:", line);
+        setStudentId(line);
+
+        // Wait for React to update state, then submit the form
+        setTimeout(() => {
+          const form = document.querySelector("form");
+          if (form) form.requestSubmit();
+        }, 300);
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +101,16 @@ export function StudentProfile() {
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => navigate('/dashboard')}
+          onClick={async () => {
+            try {
+              await fetch("http://localhost:5000/api/stop_read", { method: "POST" });
+              console.log("Stop command sent successfully");
+            } catch (error) {
+              console.error("Error sending stop command:", error);
+            } finally {
+              navigate('/dashboard');
+            }
+          }}
           className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />

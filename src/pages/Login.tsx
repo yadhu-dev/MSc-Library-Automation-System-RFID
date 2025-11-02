@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { LogIn, Mail, Lock, Loader2 } from 'lucide-react';
@@ -15,12 +15,71 @@ export function Login() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  // Port connection states
-  const [ports] = useState(['COM1', 'COM2', 'COM3', '/dev/ttyUSB0']);
+  // Port states
+  const [ports, setPorts] = useState<string[]>([]);
   const [selectedPort, setSelectedPort] = useState('');
-  const [isConnecting, setIsConnecting] = useState(false);
   const [connectedPort, setConnectedPort] = useState('');
+  const [isConnecting, setIsConnecting] = useState(false);
 
+  // 🔹 Fetch available ports from Flask backend
+  const fetchPorts = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/ports');
+      const data = await res.json();
+      setPorts(data.ports || []);
+    } catch (err) {
+      console.error('Error fetching ports:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPorts();
+  }, []);
+
+  // 🔹 Connect to selected port
+  const handleConnect = async () => {
+  if (!selectedPort) return;
+  setIsConnecting(true);
+
+  try {
+    const response = await fetch("http://localhost:5000/api/connect", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ port: selectedPort }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      console.log(" Backend response:", data);
+      setConnectedPort(selectedPort);
+    } else {
+      console.error(" Backend error:", data.error || "Connection failed");
+    }
+  } catch (error) {
+    console.error(" Network error while connecting:", error);
+  } finally {
+    setIsConnecting(false);
+  }
+};
+
+
+  // 🔹 Disconnect port
+  const handleDisconnect = async () => {
+    try {
+      await fetch('http://localhost:5000/api/disconnect', {
+        method: 'POST',
+      });
+      setConnectedPort('');
+      setSelectedPort('');
+    } catch (err) {
+      console.error('Disconnect error:', err);
+    }
+  };
+
+  // 🔹 Login handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -47,28 +106,13 @@ export function Login() {
     setLoading(false);
   };
 
-  // Simulate connection logic
-  const handleConnect = () => {
-    if (!selectedPort) return;
-    setIsConnecting(true);
-    setTimeout(() => {
-      setConnectedPort(selectedPort);
-      setIsConnecting(false);
-    }, 2000);
-  };
-
-  const handleDisconnect = () => {
-    setConnectedPort('');
-    setSelectedPort('');
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-900 to-black flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background gradients */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-900/20 via-transparent to-transparent"></div>
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-cyan-900/20 via-transparent to-transparent"></div>
 
-      {/* 🔹 Floating Port Panel (top-right) */}
+      {/*  Port Control Panel (Top-right) */}
       <motion.div
         initial={{ opacity: 0, x: 20, y: -20 }}
         animate={{ opacity: 1, x: 0, y: 0 }}
@@ -85,11 +129,15 @@ export function Login() {
               className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 mb-3 text-sm text-green focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
             >
               <option value="">-- Choose Port --</option>
-              {ports.map((port) => (
-                <option key={port} value={port}>
-                  {port}
-                </option>
-              ))}
+              {ports.length > 0 ? (
+                ports.map((port) => (
+                  <option key={port} value={port}>
+                    {port}
+                  </option>
+                ))
+              ) : (
+                <option disabled>No ports found</option>
+              )}
             </select>
 
             <motion.button

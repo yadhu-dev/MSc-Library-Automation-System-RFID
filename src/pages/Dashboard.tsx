@@ -60,6 +60,34 @@ export function Dashboard() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
 
+  //  FIXED: moved handleCardClick inside the component
+  const handleCardClick = async (path: string) => {
+    let mode = '';
+
+    // Decide mode based on path
+    if (path === '/issue-return' || path === '/student-profile') {
+      mode = 'read';
+    } else if (path === '/add-student' || path === '/add-book') {
+      mode = 'write';
+    }
+
+    if (mode) {
+      try {
+        const res = await fetch('http://localhost:5000/api/mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode }),
+        });
+
+        const data = await res.json();
+        console.log('Backend:', data);
+      } catch (err) {
+        console.error(' Error sending mode:', err);
+      }
+    }
+    navigate(path);
+  };
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/login');
@@ -85,9 +113,9 @@ export function Dashboard() {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <img
-                  src="../src/assests/SPPU_Logo.png"
+                  src="/SPPU_Logo.png"
                   alt="SPPU Logo"
-                  className="h-16 w-16 object-contain"
+                  className="h-24 w-24 object-contain"
                 />
                 <div>
                   <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
@@ -129,12 +157,12 @@ export function Dashboard() {
             {cards.map((card, index) => (
               <motion.div
                 key={card.path}
+                onClick={() => handleCardClick(card.path)}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 * index }}
                 whileHover={{ scale: 1.02, y: -5 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => navigate(card.path)}
                 className="group relative bg-gray-800/50 backdrop-blur-xl rounded-2xl p-5 border border-gray-700/50 cursor-pointer overflow-hidden h-48"
               >
                 {/* Gradient glow */}
